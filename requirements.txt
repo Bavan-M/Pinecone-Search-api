@@ -1,0 +1,31 @@
+# --- Core Backend ---
+fastapi==0.111.0
+uvicorn==0.30.1
+
+# --- Vector Database ---
+# --- Vector Database ---
+pinecone>=5.0.0
+# --- LangChain & Pinecone Integration ---
+langchain>=0.3.0
+langchain-pinecone>=0.1.0
+langchain-text-splitters>=0.3.0
+
+
+
+# --- OpenAI Embeddings ---
+openai==1.3.7
+tiktoken==0.7.0; sys_platform != "win32"
+tiktoken==0.7.0; sys_platform == "win32" and python_version < "3.12"
+# For Windows + Python 3.12+, use the wheel
+tiktoken>=0.7.0; sys_platform == "win32" and python_version >= "3.12"
+
+# --- Data & Environment ---
+python-dotenv==1.0.1
+numpy==1.26.4
+pydantic==2.7.4
+
+# --- Wikipedia Integration ---
+wikipedia-api==0.8.1
+
+# --- PyTorch for optional local embeddings ---
+torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu

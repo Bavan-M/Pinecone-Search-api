@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinecone Semantic Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        select, input, textarea, button {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        select {
+            background-color: white;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .result h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .score {
+            float: right;
+            background-color: #007bff;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #007bff;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border-color: #bee5eb;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+        .section-title {
+            color: #495057;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Pinecone Semantic Search</h1>
+        
+        <!-- Indexing Section -->
+        <div class="section">
+            <h2 class="section-title">1. Index Documents</h2>
+            <div class="form-group">
+                <label for="topicSelect">Select Topic to Index:</label>
+                <select id="topicSelect">
+                    <option value="">-- Choose a topic --</option>
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+                <button onclick="indexDocuments()" id="indexBtn">Index Selected Topic</button>
+            </div>
+        </div>
+
+        <!-- Search Section -->
+        <div class="section">
+            <h2 class="section-title">2. Search Documents</h2>
+            <div class="form-group">
+                <label for="searchQuery">Search Query:</label>
+                <input type="text" id="searchQuery" placeholder="Enter your search question...">
+            </div>
+            <div class="form-group">
+                <label for="top_k">Number of Results:</label>
+                <input type="number" id="top_k" value="5" min="1" max="20">
+            </div>
+            <button onclick="search()" id="searchBtn">Search Documents</button>
+        </div>
+
+        <!-- Management Section -->
+        <div class="section">
+            <h2 class="section-title">3. Management</h2>
+            <button onclick="clearIndex()" style="background-color: #dc3545;">Clear Index</button>
+            <button onclick="loadTopics()" style="background-color: #28a745;">Reload Topics</button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading">
+            <p>Processing your request...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Load topics when page loads
+        document.addEventListener('DOMContentLoaded', loadTopics);
+
+        async function loadTopics() {
+            try {
+                const response = await fetch('/topics');
+                const data = await response.json();
+                
+                const topicSelect = document.getElementById('topicSelect');
+                topicSelect.innerHTML = '<option value="">-- Choose a topic --</option>';
+                
+                data.topics.forEach(topic => {
+                    const option = document.createElement('option');
+                    option.value = topic;
+                    option.textContent = topic;
+                    topicSelect.appendChild(option);
+                });
+                
+                showMessage('Topics loaded successfully!', 'success');
+            } catch (error) {
+                showMessage('Error loading topics: ' + error.message, 'error');
+            }
+        }
+
+        async function indexDocuments() {
+            const topicSelect = document.getElementById('topicSelect');
+            const topic = topicSelect.value;
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const indexBtn = document.getElementById('indexBtn');
+            
+            if (!topic) {
+                showMessage('Please select a topic first!', 'error');
+                return;
+            }
+            
+            loading.style.display = 'block';
+            indexBtn.disabled = true;
+            results.innerHTML = '';
+            
+            try {
+                const response = await fetch('/index-documents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ topic: topic })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    results.innerHTML = `
+                        <div class="result success">
+                            <h3>✅ Documents Indexed Successfully</h3>
+                            <p><strong>Topic:</strong> ${data.topic}</p>
+                            <p><strong>Message:</strong> ${data.message}</p>
+                            <p><strong>Documents Indexed:</strong> ${data.documents_count}</p>
+                            ${data.sample_documents && data.sample_documents.length > 0 ? `
+                                <p><strong>Sample Documents:</strong></p>
+                                <ul>
+                                    ${data.sample_documents.map(doc => `<li>${doc.title}</li>`).join('')}
+                                </ul>
+                            ` : ''}
+                        </div>
+                    `;
+                } else {
+                    showMessage('Error: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+            
+            loading.style.display = 'none';
+            indexBtn.disabled = false;
+        }
+
+        async function search() {
+            const query = document.getElementById('searchQuery').value;
+            const top_k = document.getElementById('top_k').value;
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const searchBtn = document.getElementById('searchBtn');
+            
+            if (!query) {
+                showMessage('Please enter a search query!', 'error');
+                return;
+            }
+            
+            loading.style.display = 'block';
+            searchBtn.disabled = true;
+            results.innerHTML = '';
+            
+            try {
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: parseInt(top_k)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.length === 0) {
+                        results.innerHTML = '<div class="result info">No results found. Try indexing documents first.</div>';
+                    } else {
+                        results.innerHTML = `
+                            <div class="result success">
+                                <h3>🔍 Search Results (${data.length} found)</h3>
+                                <p><strong>Query:</strong> "${query}"</p>
+                            </div>
+                            ${data.map(result => `
+                                <div class="result">
+                                    <span class="score">${result.score.toFixed(3)}</span>
+                                    <h3>${result.title}</h3>
+                                    <p>${result.content}</p>
+                                    <small><strong>Page ID:</strong> ${result.page_id}</small>
+                                </div>
+                            `).join('')}
+                        `;
+                    }
+                } else {
+                    showMessage('Search error: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+            
+            loading.style.display = 'none';
+            searchBtn.disabled = false;
+        }
+
+        async function clearIndex() {
+            if (!confirm('Are you sure you want to clear the entire index? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/clear-index', {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showMessage('Index cleared successfully!', 'success');
+                } else {
+                    showMessage('Error: ' + data.detail, 'error');
+                }
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+
+        function showMessage(message, type) {
+            const results = document.getElementById('results');
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            results.innerHTML = `<div class="result ${className}">${message}</div>`;
+        }
+
+        // Allow Enter key to trigger search
+        document.getElementById('searchQuery').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                search();
+            }
+        });
+    </script>
+</body>
+</html>
